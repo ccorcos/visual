@@ -23,12 +23,12 @@ export class ComponentElement {
       throw new Error("child not found.");
     }
     child.parentNode = undefined;
-    newNode.nextSibling = undefined;
+    child.nextSibling = undefined;
     this.children.splice(i, 1);
   }
   appendChild(child) {
     child.parentNode = this;
-    newNode.nextSibling = undefined;
+    child.nextSibling = undefined;
     this.children.push(child);
   }
 }
@@ -179,6 +179,8 @@ export const statefulModule = {
   }
 };
 
+// TODO.
+// rather than eagerly execute effects, lets leave that to the parent so they can even pass props through later. the .view is there though so this isnt the current problem...
 export const effectModule = (effectName, patchEffect) => {
   return {
     create(emptyVNode, vnode) {
@@ -189,6 +191,7 @@ export const effectModule = (effectName, patchEffect) => {
           vnode.bag,
           childViews
         );
+        console.log(vnode.effects[effectName]);
         vnode.listeners[effectName] = vnode.update.subscribe(() => {
           const oldEffect = vnode.effects[effectName];
           const childEffects = (vnode.children || [])

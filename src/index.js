@@ -31,48 +31,67 @@ const patchComponent = snabbdom.init(
   componentApi
 );
 
-const Counter = h("counter", {
-  stateful: {
-    init: () => 0,
-    actions: {
-      inc: (state, event) => state + 1,
-      dec: (state, event) => state - 1
-    }
+const Counter = () =>
+  h("counter", {
+    stateful: {
+      init: () => 0,
+      actions: {
+        inc: (state, event) => state + 1,
+        dec: (state, event) => state - 1
+      }
+    },
+    view: ({ state, actions }, children) =>
+      h("div", [
+        h("button", { on: { click: actions.dec } }, "-"),
+        h("span", state.toString()),
+        h("button", { on: { click: actions.inc } }, "+")
+      ]),
+    // we can implement a hotkeys effect module later
+    keys: ({ state, actions }, children) =>
+      h("", {
+        "=": actions.inc,
+        "-": actions.dec
+      })
+  });
+
+function start(component) {
+  const componentRootElement = new ComponentElement("");
+  const componentRootVNode = patchComponent(componentRootElement, component);
+
+  const viewRootElement = document.createElement("div");
+  document.body.appendChild(viewRootElement);
+  const viewRootVNode = patchView(
+    viewRootElement,
+    componentRootVNode.effects.view
+  );
+}
+
+// need to warm up children components so we have access to their effects
+function warm(component) {
+  const componentRootElement = new ComponentElement("");
+  const componentRootVNode = patchComponent(componentRootElement, component);
+  return componentRootVNode;
+}
+
+// This works!
+// start(Counter());
+
+// The .elm isnt there to rerender with for some reason
+const TwoCounters = h(
+  "TwoCounters",
+  {
+    view: (_, children) => h("div", children)
   },
-  view: ({ state, actions }, children) =>
-    h("div", [
-      h("button", { on: { click: actions.dec } }, "-"),
-      h("span", state.toString()),
-      h("button", { on: { click: actions.inc } }, "+")
-    ]),
-  // we can implement a hotkeys effect module later
-  keys: ({ state, actions }, children) =>
-    h("", {
-      "=": actions.inc,
-      "-": actions.dec
-    })
-});
-
-const componentRootElement = new ComponentElement("");
-const componentRootVNode = patchComponent(componentRootElement, Counter);
-
-const viewRootElement = document.createElement("div");
-document.body.appendChild(viewRootElement);
-const viewRootVNode = patchView(
-  viewRootElement,
-  componentRootVNode.effects.view
+  [warm(Counter()), warm(Counter())]
 );
-
-// const TwoCounters = h("TwoCounters", [
-//   thunk(Counter, { decBy: 2 }),
-//   thunk(Counter, { decBy: 2 })
-// ]);
-//
-// const TwoOf = kind => h(`TwoOf(${kind.name})`, [kind]);
-// const TwoOfCounters = TwoOf(thunk(Counter, { decBy: 2 }));
+start(TwoCounters);
 
 // Examples:
 // delta counters
 // listOf
 // undoable
 // publish
+
+// TODO.
+// - why do we need tow "warm" up each component. ideally we could just call the functions from within the view function when we need them
+// -
