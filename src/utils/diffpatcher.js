@@ -3,7 +3,7 @@ import thunk from "./thunk";
 
 // compare a special key property
 const diffpatcher = new DiffPatcher({
-  objectHash: obj => obj.key,
+  objectHash: (obj, index) => obj.key || index,
   // dont diff the `node` property
   propertyFilter: (name, context) => name !== "node"
 });

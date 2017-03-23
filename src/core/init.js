@@ -1,6 +1,59 @@
 import diffpatcher from "../utils/diffpatcher";
 import eventemitter from "../utils/eventemitter";
 
+// diffpatcher = jsondiffpatch.create({
+//   objectHash: function(obj, index) {
+//     return obj.id || index;
+//   }
+// });
+// diffpatcher.diff(
+//   { children: [{ x: 1, y: 2 }, { z: 3 }] },
+//   { children: [{ x: 2 }, { y: 4 }] }
+// ).children;
+// diffpatcher.diff(
+//   { children: [{ x: 1, y: 2 }, { z: 3 }] },
+//   { children: [{ x: 2 }] }
+// ).children;
+// diffpatcher.diff(
+//   { children: [{ x: 1, y: 2 }, { z: 3 }] },
+//   { children: [{ x: 2 }, {}, { p: 0 }] }
+// ).children;
+// diffpatcher.diff(
+//   { children: [{ id: 0, x: 1, y: 2 }, { id: 1, z: 3 }] },
+//   { children: [{ id: 0, x: 2 }, { id: 2 }, { id: 1, p: 0 }] }
+// ).children;
+
+// > diffpatcher.diff(
+// ...   { children: [{ x: 1, y: 2 }, { z: 3 }] },
+// ...   { children: [{ x: 2 }, { y: 4 }] }
+// ... ).children;
+// { '0': { x: [ 1, 2 ], y: [ 2, 0, 0 ] },
+//   '1': { z: [ 3, 0, 0 ], y: [ 4 ] },
+//   _t: 'a' }
+// > diffpatcher.diff(
+// ...   { children: [{ x: 1, y: 2 }, { z: 3 }] },
+// ...   { children: [{ x: 2 }] }
+// ... ).children;
+// { '0': { x: [ 1, 2 ], y: [ 2, 0, 0 ] },
+//   _t: 'a',
+//   _1: [ { z: 3 }, 0, 0 ] }
+// > diffpatcher.diff(
+// ...   { children: [{ x: 1, y: 2 }, { z: 3 }] },
+// ...   { children: [{ x: 2 }, {}, { p: 0 }] }
+// ... ).children;
+// { '0': { x: [ 1, 2 ], y: [ 2, 0, 0 ] },
+//   '1': { z: [ 3, 0, 0 ] },
+//   '2': [ { p: 0 } ],
+//   _t: 'a' }
+// > diffpatcher.diff(
+// ...   { children: [{ id: 0, x: 1, y: 2 }, { id: 1, z: 3 }] },
+// ...   { children: [{ id: 0, x: 2 }, { id: 2 }, { id: 1, p: 0 }] }
+// ... ).children;
+// { '0': { x: [ 1, 2 ], y: [ 2, 0, 0 ] },
+//   '1': [ { id: 2 } ],
+//   '2': { z: [ 3, 0, 0 ], p: [ 0 ] },
+//   _t: 'a' }
+
 const core = {
   create(next) {
     const node = {};
@@ -25,10 +78,12 @@ const init = modules => {
       }
     });
   };
-  return (prev = {}, next = {}) => {
-    const delta = diffpatcher.diff(prev, next);
+  const patch = (prev = {}, next = {}, delta) => {
     if (!delta) {
-      return next;
+      delta = diffpatcher.diff(prev, next);
+      if (!delta) {
+        return next;
+      }
     }
     if (delta.type) {
       if (diffpatcher.isCreated(delta.type)) {
@@ -41,6 +96,8 @@ const init = modules => {
       } else {
         throw new Error("this shouldnt happen because type cant be nested");
       }
+    } else if (delta.children) {
+      Object.keys(delt);
     } else {
       throw new Error(
         "this shouldnt happen because components of the same type should have the same interface"
@@ -48,6 +105,7 @@ const init = modules => {
     }
     return next;
   };
+  return patch;
 };
 
 export default init;

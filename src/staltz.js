@@ -48,3 +48,4 @@ patch({}, Counter());
 // - listof counters
 // - weather
 // - undoable
+// - state machine composition
