@@ -66,6 +66,7 @@ function start(component) {
   );
 }
 
+// no need to warm when we refactor the effects module TODO
 // need to warm up children components so we have access to their effects
 function warm(component) {
   const componentRootElement = new ComponentElement("");
