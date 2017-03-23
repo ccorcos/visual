@@ -5,6 +5,7 @@ import styleModule from "snabbdom/modules/style";
 import eventModule from "snabbdom/modules/eventlisteners";
 import h from "snabbdom/h";
 import { DiffPatcher } from "jsondiffpatch/src/diffpatcher";
+import keymaster from "keymaster";
 
 const patchv = snabbdom.init([
   classModule,
@@ -94,9 +95,9 @@ class EventEmitter {
     delete this.subscribers[key][id];
   }
   emit(key, value) {
-    Object.keys(this.subscribers[key]).forEach(id =>
+    Object.keys(this.subscribers[key] || {}).forEach(id =>
       this.subscribers[key][id](value));
-    Object.keys(this.subscribers["*"] || []).forEach(id =>
+    Object.keys(this.subscribers["*"] || {}).forEach(id =>
       this.subscribers["*"][id](value));
   }
   clear() {
@@ -115,13 +116,47 @@ const destroyed = field => {
   return field && field.length === 3;
 };
 
+const patchk = (prev = {}, next) => {
+  const delta = diffpatcher.diff(prev, next);
+  if (!delta) {
+    return next;
+  }
+  if (delta.keys) {
+    if (created(delta.keys)) {
+      // created
+      const node = {};
+      node.element = next;
+      node.update = new EventEmitter();
+      // create keymaster listeners
+      Object.keys(next.keys).forEach(key => {
+        keymaster(key, () => node.update.emit(key));
+      });
+      // create subscriptions
+      Object.keys(next.keys).forEach(key => {
+        node.update.subscribe(key, () => next.keys[key]());
+      });
+      next.node = node;
+      return next;
+    } else if (destroyed(delta.keys)) {
+      next.node.update.destroy();
+    } else {
+      // updated
+    }
+  } else {
+    // updated
+  }
+  return next;
+};
+
 const patchc = (prev = {}, next) => {
   const delta = diffpatcher.diff(prev, next);
+  if (!delta) {
+    return next;
+  }
   if (delta.type) {
     if (created(delta.type)) {
       // created
       const node = {};
-      node.element = next;
       node.update = new EventEmitter();
       node.bag = {};
       node.bag.state = next.stateful.init();
@@ -142,6 +177,12 @@ const patchc = (prev = {}, next) => {
       node.update.subscribe("*", value => {
         node.effects.view = patchv(node.effects.view, next.view(node.bag));
       });
+
+      node.effects.keys = patchk(prev.node.effects.keys, next.keys(node.bag));
+      node.update.subscribe("*", value => {
+        node.effects.keys = patchk(node.effects.keys, next.keys(node.bag));
+      });
+
       next.node = node;
       return next;
     } else if (destroyed(delta.type)) {
@@ -163,6 +204,7 @@ const patchc = (prev = {}, next) => {
     //   // recurse
     // }
   }
+  return next;
 };
 
 const Counter = () => ({
@@ -182,8 +224,10 @@ const Counter = () => ({
       h("button", { on: { click: actions.inc } }, "+")
     ]),
   keys: ({ state, actions }, children) => ({
-    "=": actions.inc,
-    "-": actions.dec
+    keys: {
+      "=": actions.inc,
+      "-": actions.dec
+    }
   })
 });
 
@@ -194,9 +238,19 @@ const rootc = patchc(
   {
     node: {
       effects: {
-        view: div
+        view: div,
+        keys: {}
       }
     }
   },
   Counter()
 );
+
+// TODO.
+// - hotkeys effects driver
+// - refactor patches into modules
+// - handle diffing children
+// - examples
+//   - two counters
+//   - toggling things into view
+//   - listof counters
