@@ -1,6 +1,7 @@
 import diffpatcher from "../utils/diffpatcher";
 import eventemitter from "../utils/eventemitter";
 
+// There are two parallel trees going on here. There's the decarlative tree description that we get from the developer, and then we have this effectful tree that mutates in place and wires everything up with the outside world.
 class Node {
   constructor() {
     this.update = eventemitter();
@@ -11,9 +12,16 @@ class Node {
   append(child) {
     this.children.push(child);
   }
-  remove(child) {}
+  remove(child) {
+    this.children.splice(this.children.indexOf(child), 1)
+  }
+  move(from, to) {
+    const [value] = this.children.splice(from, 1)
+    this.children.splice(to, 0, value)
+  }
 }
 
+// This is the core module that gets the developer tree and handles all the externalities. Typically, this involves creating a parallel tree that holds all the mutations and effects.
 const core = {
   create(patch, tree) {
     tree.node = new Node();
@@ -21,6 +29,15 @@ const core = {
       tree.children.forEach(child => {
         tree.node.append(patch(undefined, child));
       });
+    }
+  },
+  destroy(patch, tree) {
+    tree.node.update.clear();
+    if (tree.children) {
+      tree.node.children.forEach(child => {
+        patch(child, undefined);
+      });
+      delete tree.node
     }
   },
   update(patch, prev, next, delta) {
@@ -36,15 +53,7 @@ const core = {
       }
     }
   },
-  destroy(patch, tree) {
-    tree.node.update.clear();
-    if (tree.children) {
-      tree.node.children.forEach(child => {
-        patch(child, undefined);
-      });
-      tree.node.children = [];
-    }
-  }
+
 };
 
 const init = modules => {
@@ -78,11 +87,7 @@ const init = modules => {
         hook("create", patch, next);
       } else {
         hook("update", patch, prev, next, delta)
-      }
-
-
-
-     else if (delta.children) {
+      } else if (delta.children) {
         // left are deletes and moves on prev
         // right are adds and updates on next
         const { left, right } = Object.keys(delta.children).reduce(

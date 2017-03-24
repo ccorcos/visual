@@ -25,23 +25,23 @@ const patch = (prev = {}, next) => {
     return next;
   }
   if (delta.keys) {
-    if (diffpatcher.isCreated(delta.keys)) {
+    if (diffpatcher.isAdded(delta.keys)) {
       next.node = create(next);
     } else if (diffpatcher.isUpdated(delta.keys)) {
       throw new Error(
         "this should never happen because keys should always be an object."
       );
-    } else if (diffpatcher.isDestroyed(delta.keys)) {
+    } else if (diffpatcher.isDeleted(delta.keys)) {
       next.node.update.clear();
     } else {
       Object.keys(delta.keys).forEach(key => {
-        if (diffpatcher.isCreated(delta.keys[key])) {
+        if (diffpatcher.isAdded(delta.keys[key])) {
           next.node.update.subscribe(key, () => next.keys[key]());
         } else if (diffpatcher.isUpdated(delta.keys[key])) {
           throw new Error(
             "this should never happen because functions do not diff."
           );
-        } else if (diffpatcher.isDestroyed(delta.keys[key])) {
+        } else if (diffpatcher.isDeleted(delta.keys[key])) {
           next.node.update.stop(next.node.listeners[key]);
           delete next.node.listeners[key];
         } else {

@@ -34,7 +34,7 @@ document.body.appendChild(div);
 
 const patch = init([
   stateful,
-  effect("keys", patchk, {}),
+  effect("keys", patchk, undefined),
   effect("view", patchv, div)
 ]);
 
