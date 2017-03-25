@@ -1,4 +1,4 @@
-import diffpatcher from "../utils/diffpatcher";
+import diffpatcher from "../diffpatcher";
 import eventemitter from "../utils/eventemitter";
 import keymaster from "keymaster";
 

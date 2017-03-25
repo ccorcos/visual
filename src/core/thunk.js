@@ -30,6 +30,6 @@ export class Thunk {
 
 const thunk = (...args) => new Thunk(...args);
 
-thunk.isThunk = obj => obj instanceof Thunk;
+export const isThunk = obj => obj instanceof Thunk;
 
 export default thunk;

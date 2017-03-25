@@ -1,5 +1,10 @@
 # Visual
 
+- core should accept Node type. we're basically making snabbdom all over again.
+- add some better typing and stuff. should be easier to follow
+- use snabbdom event listener
+
+
 ## To Do
 - read the herel statecharts paper: http://www.inf.ed.ac.uk/teaching/courses/seoc/2005_2006/resources/statecharts.pdf
 

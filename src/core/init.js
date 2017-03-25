@@ -1,123 +1,56 @@
-import diffpatcher from "../utils/diffpatcher";
-import eventemitter from "../utils/eventemitter";
+import { isAdded, isDeleted, isUpdated, isMoved } from "./diffpatch";
 
-class Node {
-  constructor() {
-    this.update = eventemitter();
-    this.bag = {};
-    this.effects = {};
-    this.children = [];
-  }
-  append(child) {
-    this.children.push(child);
-  }
-  remove(child) {}
-}
-
-const core = {
-  create(patch, tree) {
-    tree.node = new Node();
-    if (tree.children) {
-      tree.children.forEach(child => {
-        tree.node.append(patch(undefined, child));
-      });
-    }
-  },
-  update(patch, prev, next, delta) {
-    if (delta.type) {
-      if (diffpatcher.isAdded(delta.type)) {
-        hook("destroy", patch, prev);
-        hook("create", patch, next);
-      } else if (diffpatcher.isUpdated(delta.type)) {
-        hook("destroy", patch, prev);
-        hook("create", patch, next);
-      } else {
-        throw new Error("this shouldnt happen");
+const init = (diffpatcher, core) =>
+  modules => {
+    const hook = (name, ...args) => {
+      if (core[name]) {
+        core[name](...args);
       }
-    }
-  },
-  destroy(patch, tree) {
-    tree.node.update.clear();
-    if (tree.children) {
-      tree.node.children.forEach(child => {
-        patch(child, undefined);
+      modules.forEach(module => {
+        if (module[name]) {
+          module[name](...args);
+        }
       });
-      tree.node.children = [];
-    }
-  }
-};
+    };
 
-const init = modules => {
-  const hook = (name, ...args) => {
-    if (core[name]) {
-      core[name](...args);
-    }
-    modules.forEach(module => {
-      if (module[name]) {
-        module[name](...args);
-      }
-    });
-  };
-
-  const patch = (prev = undefined, next = {}, delta) => {
-    if (!delta) {
-      delta = diffpatcher.diff(prev, next);
+    const patch = (prev, next, delta) => {
+      // when we recurse, we might have already computed the delta
       if (!delta) {
+        delta = diffpatcher.diff(prev, next);
+        // if they're the same, we still might need to patch the new functions
+        if (!delta) {
+          hook("update", patch, prev, next, delta);
+          return next;
+        }
+      }
+      if (isAdded(delta)) {
+        hook("create", patch, delta[1]);
         return next;
       }
-    }
-    if (diffpatcher.isAdded(delta)) {
-      hook("create", patch, tree);
-    } else if (diffpatcher.isUpdated(delta)) {
-      throw new Error("this shouldnt happen");
-    } else if (diffpatcher.isDeleted(delta)) {
-      hook("destroy", patch, tree);
-    } else if (diffpatcher.isNested(delta)) {
-      if (delta.key) {
-        hook("destroy", patch, prev);
-        hook("create", patch, next);
-      } else {
-        hook("update", patch, prev, next, delta)
-      }
-
-
-
-     else if (delta.children) {
-        // left are deletes and moves on prev
-        // right are adds and updates on next
-        const { left, right } = Object.keys(delta.children).reduce(
-          ({ left, right }, key) => {
-            if (key === "_t") {
-              return { left, right };
-            } else if (key[0] === "_") {
-              left.push(key);
-              return { left, right };
-            } else {
-              right.push(key);
-              return { left, right };
-            }
-          },
-          { left: [], right: [] }
+      if (isUpdated(delta)) {
+        throw new Error(
+          "this shouldnt happen so long as the tree is defined by an object, which it should..."
         );
-
-        left.forEach(key => {
-          const d = delta.children[key];
-          if (diffpatcher.isDeleted(d)) {
-            destroy();
-          }
-        });
-        // find all the children to delete
-        // find all the children to move
-        // prev.children, prev.node.children
-      } else {
-        throw new Error("this shouldnt happen");
       }
-    } else {
+      if (isDeleted(delta)) {
+        hook("destroy", patch, prev);
+        return next;
+      }
+      if (isNested(delta)) {
+        // if you change the id, then we're going to treat that like creating everything anew.
+        for (var i = 0; i < diffpatcher.idKeys.length; i++) {
+          if (delta[diffpatcher.idKeys[i]]) {
+            hook("destroy", patch, prev);
+            hook("create", patch, next);
+            return next;
+          }
+        }
+        hook("update", patch, prev, next, delta);
+        return next;
+      }
       throw new Error("this shouldnt happen");
-    }
-    return next;
+    };
+    return patch;
   };
-  return patch;
-};
 
 export default init;

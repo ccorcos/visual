@@ -1,5 +1,6 @@
-import diffpatcher from "../utils/diffpatcher";
-import eventemitter from "../utils/eventemitter";
+import diffpatch, { isAdded, isDeleted, isUpdated, isMoved } from "./diffpatch";
+import init from "./init";
+import eventemitter from "./eventemitter";
 
 // There are two parallel trees going on here. There's the decarlative tree description that we get from the developer, and then we have this effectful tree that mutates in place and wires everything up with the outside world.
 class Node {
@@ -8,16 +9,20 @@ class Node {
     this.bag = {};
     this.effects = {};
     this.children = [];
+    this.listeners = {};
   }
   append(child) {
     this.children.push(child);
   }
-  remove(child) {
-    this.children.splice(this.children.indexOf(child), 1)
+  insert(child, index) {
+    this.children.splice(child, index);
   }
-  move(from, to) {
-    const [value] = this.children.splice(from, 1)
-    this.children.splice(to, 0, value)
+  remove(child) {
+    this.children.splice(this.children.indexOf(child), 1);
+  }
+  move(child, to) {
+    this.remove(child);
+    this.children.splice(to, 0, child);
   }
 }
 
@@ -37,92 +42,57 @@ const core = {
       tree.node.children.forEach(child => {
         patch(child, undefined);
       });
-      delete tree.node
+      delete tree.node;
     }
   },
   update(patch, prev, next, delta) {
-    if (delta.type) {
-      if (diffpatcher.isAdded(delta.type)) {
-        hook("destroy", patch, prev);
-        hook("create", patch, next);
-      } else if (diffpatcher.isUpdated(delta.type)) {
-        hook("destroy", patch, prev);
-        hook("create", patch, next);
-      } else {
-        throw new Error("this shouldnt happen");
-      }
-    }
-  },
-
-};
-
-const init = modules => {
-  const hook = (name, ...args) => {
-    if (core[name]) {
-      core[name](...args);
-    }
-    modules.forEach(module => {
-      if (module[name]) {
-        module[name](...args);
-      }
-    });
-  };
-
-  const patch = (prev = undefined, next = {}, delta) => {
+    // we want to carry over the node regardless
+    const node = prev.node;
+    next.node = node;
     if (!delta) {
-      delta = diffpatcher.diff(prev, next);
-      if (!delta) {
-        return next;
-      }
+      return;
     }
-    if (diffpatcher.isAdded(delta)) {
-      hook("create", patch, tree);
-    } else if (diffpatcher.isUpdated(delta)) {
-      throw new Error("this shouldnt happen");
-    } else if (diffpatcher.isDeleted(delta)) {
-      hook("destroy", patch, tree);
-    } else if (diffpatcher.isNested(delta)) {
-      if (delta.key) {
-        hook("destroy", patch, prev);
-        hook("create", patch, next);
-      } else {
-        hook("update", patch, prev, next, delta)
-      } else if (delta.children) {
-        // left are deletes and moves on prev
-        // right are adds and updates on next
-        const { left, right } = Object.keys(delta.children).reduce(
-          ({ left, right }, key) => {
-            if (key === "_t") {
-              return { left, right };
-            } else if (key[0] === "_") {
-              left.push(key);
-              return { left, right };
-            } else {
-              right.push(key);
-              return { left, right };
-            }
-          },
-          { left: [], right: [] }
-        );
-
-        left.forEach(key => {
-          const d = delta.children[key];
-          if (diffpatcher.isDeleted(d)) {
-            destroy();
+    if (delta.children) {
+      // left are deletes and moves on prev
+      // right are adds and updates on next
+      const { left, right } = Object.keys(delta.children).reduce(
+        ({ left, right }, key) => {
+          if (key === "_t") {
+            return { left, right };
+          } else if (key[0] === "_") {
+            left.push(key);
+            return { left, right };
+          } else {
+            right.push(key);
+            return { left, right };
           }
-        });
-        // find all the children to delete
-        // find all the children to move
-        // prev.children, prev.node.children
-      } else {
-        throw new Error("this shouldnt happen");
-      }
-    } else {
-      throw new Error("this shouldnt happen");
+        },
+        { left: [], right: [] }
+      );
+
+      left.forEach(key => {
+        const d = delta.children[key];
+        const child = prev.children[Number(key.slice(1))];
+        if (isDeleted(d)) {
+          node.remove(child);
+          patch(child, undefined);
+        } else if (isMoved(d)) {
+          node.move(child, d[1]);
+        }
+      });
+
+      right.forEach(key => {
+        const d = delta.children[key];
+        if (isAdded(d)) {
+          const child = d[0];
+          node.insert(patch(undefined, child, d), Number(key));
+        } else if (isUpdated(d)) {
+          const i = Number(key);
+          patch(node.children[i], next.children[i], d);
+        }
+      });
     }
-    return next;
-  };
-  return patch;
+  }
 };
 
-export default init;
+export default init(diffpatch(["key", "type"], ["node"]), core);
